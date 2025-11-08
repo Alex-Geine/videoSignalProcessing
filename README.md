@@ -110,3 +110,6 @@ videoSygnalProcessing/
         ├── utils.h
         └── utils.cpp
 ```
+
+Установка
+sudo apt-get install pkg-config

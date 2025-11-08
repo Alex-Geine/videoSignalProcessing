@@ -4,6 +4,12 @@
 #include "utils.h"
 
 int main() {
+    // Принудительная точка останова для отладки
+    std::cout << "=== SERVER STARTING ===" << std::endl;
+    
+    #ifdef DEBUG
+    std::cout << "DEBUG MODE ENABLED" << std::endl;
+    #endif
     Utils server;
     server.loadConfig();
     

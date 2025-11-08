@@ -5,6 +5,42 @@ project(VideoProcessingSystem VERSION 1.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# ============================================================================
+# НАСТРОЙКА СБОРКИ И ОТЛАДКИ
+# ============================================================================
+
+# Настройка типов сборки
+if(NOT CMAKE_BUILD_TYPE)
+    # Можно установить "Debug" или "Realise"
+    set(CMAKE_BUILD_TYPE Debug)
+endif()
+
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+
+# Флаги компиляции для разных типов сборки
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -O0 -DDEBUG -Wall -Wextra ")
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O2 -g -DNDEBUG")
+set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} -Os -DNDEBUG")
+
+# Дополнительные флаги для всех сборок
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+
+# Опция для включения санитайзеров (только в Debug)
+option(ENABLE_SANITIZERS "Enable address and undefined behavior sanitizers" OFF)
+
+# Санитайзеры для отладки
+if(ENABLE_SANITIZERS AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(SANITIZER_FLAGS "-fsanitize=address -fsanitize=undefined -fsanitize=leak")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} ${SANITIZER_FLAGS}")
+    set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} ${SANITIZER_FLAGS}")
+    message(STATUS "Sanitizers enabled: Address, Undefined Behavior, Leak")
+endif()
+
+# ============================================================================
+# ОПЦИИ ПРОЕКТА
+# ============================================================================
+
 # Опции для выбора версии каждого модуля
 option(BUILD_SERVER_REAL "Build server with real implementation" OFF)
 option(BUILD_WORKER_REAL "Build worker with real implementation" OFF)
@@ -18,6 +54,8 @@ option(BUILD_POSTPROCESSOR "Build postprocessor module" ON)
 option(BUILD_UTILS "Build utils module" ON)
 
 message(STATUS "Video Processing System Configuration")
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "Sanitizers: ${ENABLE_SANITIZERS}")
 
 # ============================================================================
 # ПОИСК СИСТЕМНОГО OpenCV
@@ -167,6 +205,11 @@ target_include_directories(zmq_interface INTERFACE
     ${CPPZMQ_INCLUDE_DIR}
 )
 
+# Добавляем флаги отладки для ZeroMQ
+target_compile_definitions(zmq_interface INTERFACE 
+    $<$<CONFIG:Debug>:ZMQ_BUILD_DRAFT_API=0>
+)
+
 # OpenCV интерфейс
 add_library(opencv_interface INTERFACE)
 target_link_libraries(opencv_interface INTERFACE ${OpenCV_LIBS})
@@ -175,6 +218,7 @@ target_include_directories(opencv_interface INTERFACE ${OpenCV_INCLUDE_DIRS})
 # ============================================================================
 # ФУНКЦИЯ ДЛЯ СОЗДАНИЯ МОДУЛЕЙ
 # ============================================================================
+
 function(create_module module_name)
     string(TOUPPER ${module_name} MODULE_NAME_UPPER)
     
@@ -208,7 +252,7 @@ function(create_module module_name)
         )
     endif()
 
-    # ОБЩИЕ НАСТРОЙКИ ДЛЯ ВСЕХ МОДУЛЕЙ
+    # ОБЩИЕ НАСТРОКИ ДЛЯ ВСЕХ МОДУЛЕЙ
     if(${module_name} STREQUAL "utils")
         # Зависимости для utils
         target_link_libraries(${module_name}
@@ -268,8 +312,19 @@ function(create_module module_name)
         message(STATUS "Linked ${module_name} to utils library (include: ${UTILS_INCLUDE_DIR})")
     endif()
 
+    # ДОБАВЛЯЕМ ФЛАГИ ОТЛАДКИ ДЛЯ ВСЕХ ЦЕЛЕЙ
+    target_compile_definitions(${module_name} PRIVATE 
+        $<$<CONFIG:Debug>:DEBUG=1>
+    )
+    
+    # Включаем отладочную информацию для всех целей
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        target_compile_options(${module_name} PRIVATE -g -O0)
+    endif()
+    
     message(STATUS "Configured module: ${module_name}")
 endfunction()
+
 # ============================================================================
 # ОСНОВНАЯ СБОРКА
 # ============================================================================
@@ -312,5 +367,6 @@ message(STATUS "ZeroMQ: ${ZMQ_FOUND} (${ZMQ_LIBRARY})")
 message(STATUS "cppzmq: ${CPPZMQ_FOUND}")
 message(STATUS "OpenCV: ${OpenCV_VERSION} (REQUIRED)")
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "Sanitizers: ${ENABLE_SANITIZERS}")
 message(STATUS "Output directory: ${CMAKE_BINARY_DIR}/bin")
 message(STATUS "================================================")

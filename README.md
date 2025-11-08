@@ -124,3 +124,7 @@ sudo apt-get install -y libbsd-dev
 
 # Install OpenCV
 sudo apt install libopencv-dev
+
+6) Отладка
+
+TODO: Как отладить программу через VSCode

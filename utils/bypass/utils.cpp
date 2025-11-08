@@ -21,6 +21,8 @@ struct Utils::Impl {
     std::unique_ptr<zmq::socket_t> socket;
     bool connected;
     bool is_server;
+    std::string client_id;  // для ROUTER сервера
+
     
     // Конфигурация
     YAML::Node config;
@@ -136,6 +138,9 @@ bool Utils::initializeServer(const std::string& ip, int port) {
         pImpl->connected = true;
         pImpl->is_server = true;
         
+        pImpl->socket->set(zmq::sockopt::rcvtimeo, 10000);
+        pImpl->socket->set(zmq::sockopt::sndtimeo, 10000);
+        
         std::cout << "Server started on: " << address << std::endl;
         return true;
     } catch (const zmq::error_t& e) {
@@ -148,13 +153,13 @@ bool Utils::initializeClient(const std::string& ip, int port) {
     try {
         std::string address = "tcp://" + ip + ":" + std::to_string(port);
         pImpl->socket = std::make_unique<zmq::socket_t>(*pImpl->context, ZMQ_REQ);
+        
         pImpl->socket->connect(address);
         pImpl->connected = true;
         pImpl->is_server = false;
         
-        // Таймауты
-        pImpl->socket->set(zmq::sockopt::rcvtimeo, 5000);
-        pImpl->socket->set(zmq::sockopt::sndtimeo, 5000);
+        pImpl->socket->set(zmq::sockopt::rcvtimeo, 10000);
+        pImpl->socket->set(zmq::sockopt::sndtimeo, 10000);
         
         std::cout << "Client connected to: " << address << std::endl;
         return true;
@@ -163,7 +168,6 @@ bool Utils::initializeClient(const std::string& ip, int port) {
         return false;
     }
 }
-
 // ============================================================================
 // СЕРИАЛИЗАЦИЯ И ДЕСЕРИАЛИЗАЦИЯ ИЗОБРАЖЕНИЙ
 // ============================================================================

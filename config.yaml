@@ -6,11 +6,11 @@ server:
 worker:
   ip: "localhost"
   port: 5556
-  output_dir: "pic/worker"
+  output_dir: "pic/worker/"
 
 postprocessor:
   ip: "localhost"
   port: 5557
-  output_dir: "pic/postProcessor"
+  output_dir: "pic/postProcessor/"
   processed_prefix: "proc_"
   bare_prefix: "bare_"

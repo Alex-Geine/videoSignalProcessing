@@ -113,3 +113,14 @@ videoSygnalProcessing/
 
 Установка
 sudo apt-get install pkg-config
+
+OpenCv
+# Минимальные зависимости для OpenCV
+sudo apt-get install -y build-essential cmake git pkg-config
+sudo apt-get install -y libjpeg-dev libtiff5-dev libpng-dev
+sudo apt-get install -y libv4l-dev v4l-utils
+sudo apt-get install -y libgtk-3-dev
+sudo apt-get install -y libbsd-dev
+
+# Install OpenCV
+sudo apt install libopencv-dev

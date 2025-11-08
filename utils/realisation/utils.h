@@ -6,7 +6,7 @@ class Utils
 {
 public:
     // Utils process funtion
-    void process();
+    void processConfig();
 };
 
 #endif // _UTILS_H_

@@ -1,0 +1,16 @@
+server:
+  ip: "localhost"
+  port: 5555
+  input_image: "pic/server/photo.bmp"
+
+worker:
+  ip: "localhost"
+  port: 5556
+  output_dir: "pic/worker/"
+
+postprocessor:
+  ip: "localhost"
+  port: 5557
+  output_dir: "pic/postProcessor/"
+  processed_prefix: "proc_"
+  bare_prefix: "bare_"

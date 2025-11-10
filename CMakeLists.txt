@@ -42,7 +42,7 @@ endif()
 # ============================================================================
 
 # Опции для выбора версии каждого модуля
-option(BUILD_SERVER_REAL "Build server with real implementation" OFF)
+option(BUILD_SERVER_REAL "Build server with real implementation" ON)
 option(BUILD_WORKER_REAL "Build worker with real implementation" OFF)
 option(BUILD_POSTPROCESSOR_REAL "Build postprocessor with real implementation" OFF)
 option(BUILD_UTILS_REAL "Build utils with real implementation" OFF)
@@ -111,7 +111,7 @@ include(FetchContent)
 FetchContent_Declare(
     yaml-cpp
     GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
-    GIT_TAG yaml-cpp-0.7.0
+    GIT_TAG     master
 )
 
 set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "Disable yaml-cpp tests")
@@ -125,7 +125,7 @@ FetchContent_MakeAvailable(yaml-cpp)
 FetchContent_Declare(
     libzmq
     GIT_REPOSITORY https://github.com/zeromq/libzmq.git
-    GIT_TAG v4.3.5
+    GIT_TAG master
 )
 
 # Устанавливаем опции до вызова MakeAvailable

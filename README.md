@@ -181,7 +181,12 @@ endif()
 * Собрать проект: Ctrl + Shift + P -> CMake: Build
 
 > [!CAUTION]
-> Если встречается ошибка вида `CMake Error at build/_deps/yaml-cpp-src/CMakeLists.txt:2 (cmake_minimum_required): Compatibility with CMake < 3.5 has been removed from CMake.` собрать проект через `./unsafe_build.sh`.
+> Если встречается ошибка вида:
+```
+CMake Error at build/_deps/yaml-cpp-src/CMakeLists.txt:2 (cmake_minimum_required):
+  Compatibility with CMake < 3.5 has been removed from CMake.
+```
+то собрать проект через `./unsafe_build.sh`.
 
 Исходники будут находится в папке $build/bin/$.
 

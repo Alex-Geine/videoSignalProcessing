@@ -1,0 +1,26 @@
+[
+{
+  "directory": "/home/aleksey/workspace/study/system_engineering/photo/build",
+  "command": "/usr/bin/c++  -isystem /usr/include/opencv4 -g -o CMakeFiles/srv_send.dir/srv_send.cpp.o -c /home/aleksey/workspace/study/system_engineering/photo/srv_send.cpp",
+  "file": "/home/aleksey/workspace/study/system_engineering/photo/srv_send.cpp",
+  "output": "CMakeFiles/srv_send.dir/srv_send.cpp.o"
+},
+{
+  "directory": "/home/aleksey/workspace/study/system_engineering/photo/build",
+  "command": "/usr/bin/c++  -isystem /usr/include/opencv4 -g -o CMakeFiles/srv_recv.dir/srv_recv.cpp.o -c /home/aleksey/workspace/study/system_engineering/photo/srv_recv.cpp",
+  "file": "/home/aleksey/workspace/study/system_engineering/photo/srv_recv.cpp",
+  "output": "CMakeFiles/srv_recv.dir/srv_recv.cpp.o"
+},
+{
+  "directory": "/home/aleksey/workspace/study/system_engineering/photo/build",
+  "command": "/usr/bin/c++  -isystem /usr/include/opencv4 -g -o CMakeFiles/clt_recv.dir/clt_recv.cpp.o -c /home/aleksey/workspace/study/system_engineering/photo/clt_recv.cpp",
+  "file": "/home/aleksey/workspace/study/system_engineering/photo/clt_recv.cpp",
+  "output": "CMakeFiles/clt_recv.dir/clt_recv.cpp.o"
+},
+{
+  "directory": "/home/aleksey/workspace/study/system_engineering/photo/build",
+  "command": "/usr/bin/c++  -isystem /usr/include/opencv4 -g -o CMakeFiles/clt_send.dir/clt_send.cpp.o -c /home/aleksey/workspace/study/system_engineering/photo/clt_send.cpp",
+  "file": "/home/aleksey/workspace/study/system_engineering/photo/clt_send.cpp",
+  "output": "CMakeFiles/clt_send.dir/clt_send.cpp.o"
+}
+]

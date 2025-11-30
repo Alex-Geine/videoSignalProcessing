@@ -1,0 +1,87 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"jsonFile" : "directory-.-Debug-f5ebdc15457944623624.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.10.0"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "photo",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2,
+						3
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "clt_recv::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-clt_recv-Debug-382e4cc74605b74f64d5.json",
+					"name" : "clt_recv",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "clt_send::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-clt_send-Debug-f5e26fac2ee1f5f459ac.json",
+					"name" : "clt_send",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "srv_recv::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-srv_recv-Debug-3168d622d7d79fa744c1.json",
+					"name" : "srv_recv",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "srv_send::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-srv_send-Debug-5c897384ec8b8e996537.json",
+					"name" : "srv_send",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/home/aleksey/workspace/study/system_engineering/photo/build",
+		"source" : "/home/aleksey/workspace/study/system_engineering/photo"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 8
+	}
+}

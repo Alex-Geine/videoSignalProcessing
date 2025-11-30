@@ -1,0 +1,6 @@
+/home/aleksey/workspace/study/system_engineering/photo/build/CMakeFiles/srv_send.dir
+/home/aleksey/workspace/study/system_engineering/photo/build/CMakeFiles/srv_recv.dir
+/home/aleksey/workspace/study/system_engineering/photo/build/CMakeFiles/clt_recv.dir
+/home/aleksey/workspace/study/system_engineering/photo/build/CMakeFiles/clt_send.dir
+/home/aleksey/workspace/study/system_engineering/photo/build/CMakeFiles/edit_cache.dir
+/home/aleksey/workspace/study/system_engineering/photo/build/CMakeFiles/rebuild_cache.dir

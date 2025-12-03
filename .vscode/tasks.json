@@ -1,0 +1,26 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build-debug",
+            "type": "shell",
+            "command": "cd ${workspaceFolder}/build && cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_SANITIZERS=ON .. && make -j8",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "build-release",
+            "type": "shell", 
+            "command": "cd ${workspaceFolder}/build && cmake -DCMAKE_BUILD_TYPE=Release .. && make -j8",
+            "group": "build"
+        },
+        {
+            "label": "clean-debug",
+            "type": "shell",
+            "command": "cd ${workspaceFolder} && rm -rf build && mkdir build && cd build && cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_SANITIZERS=ON .. && make -j8",
+            "group": "build"
+        }
+    ]
+}

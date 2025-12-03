@@ -5,6 +5,15 @@ project(VideoProcessingSystem VERSION 1.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Решение проблем совместимости с зависимостями
+if(CMAKE_VERSION VERSION_LESS 3.20)
+    set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+endif()
+
+# Отключаем предупреждения о политиках для зависимостей
+cmake_policy(SET CMP0048 NEW)  # Project version
+cmake_policy(SET CMP0077 NEW)  # Option honor
+
 # ============================================================================
 # НАСТРОЙКА СБОРКИ И ОТЛАДКИ
 # ============================================================================

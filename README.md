@@ -8,7 +8,7 @@
 - Работа с репозиторием происходит в собственной ветке, унаследованной от main
 
 - Ветка main содержит исходный код с заглушками, которые необходимы для проверки и демонстрации
-работы всего проекта в целом. Поэтому, изменения в эту ветку вность нельзя.
+работы всего проекта в целом. Поэтому, изменения в эту ветку вносить нельзя.
 
 
 ## Настройка окружения:
@@ -28,13 +28,13 @@ Installation successful!
 ### 2) Установка и настройка Visual Studio Code
 - Устанавливаем Visual Studio Code
 - Открываем приложение и устанавливаем необходимые дополнения к нему. Делается это через
-вкладку Extensions (Cntrl + Shift + X). 
+вкладку Extensions (Ctrl + Shift + X). 
 Список дополнений:
     1. WSL - для работы с wsl
     2. C/C++
     3. C/C++ Extension Pack
     4. CMake Tools
-- Далее необходимо подключиться к wsl. Жмем "Cntr + Shift + P", открывается меню сверху.
+- Далее необходимо подключиться к wsl. Жмем "Ctrl + Shift + P", открывается меню сверху.
 В нем пишем: 
 ```
 WSL: Connect to WSL using Distro...
@@ -43,7 +43,7 @@ WSL: Connect to WSL using Distro...
 
 - Во вкладке Extensions снова загружаем нужные дополнения (они уникальные для каждого WSL).
 
-**NOTE:**  Терминал открывается на "Cntrl + ~", между папками можно переключаться через "Cntrl + K + O".
+**NOTE:**  Терминал открывается на "Ctrl + ~", между папками можно переключаться через "Ctrl + K + O".
 
 3) Настройка самой Ubuntu.
 Для дальнейшей работы нам необходимо следующее:
@@ -108,32 +108,32 @@ git checkout -b name_of_new_branch
 
 Cтруткура проекта:
 ```
-videoSygnalProcessing/
+videoSignalProcessing/
 ├── CMakeLists.txt           - инструкции для сборки
 ├── config.yaml              - конфигурация модулей
 ├── server/                  - код для Сервера
-│   ├── realisation/         - Сюда нужно вставить реализацию
+│   ├── realization/         - Сюда нужно вставить реализацию
 │   │   ├── server.h
 │   │   └── server.cpp
 │   └── bypass/              - Здесь хранится заглушка
 │       ├── server.h
 │       └── server.cpp
 ├── worker/                  - код для Обработчика
-│   ├── realisation/         - Сюда нужно вставить реализацию
+│   ├── realization/         - Сюда нужно вставить реализацию
 │   │   ├── worker.h
 │   │   └── worker.cpp
 │   └── bypass/              - Здесь хранится заглушка
 │       ├── worker.h
 │       └── worker.cpp
 ├── postProcessor/          - код для Пост-обработчика
-│   ├── realisation/        - Сюда нужно вставить реализацию
+│   ├── realization/        - Сюда нужно вставить реализацию
 │   │   ├── postProcessor.h
 │   │   └── postProcessor.cpp
 │   └── bypass/             - Здесь хранится заглушка
 │       ├── postProcessor.h
 │       └── postProcessor.cpp
-├── utils/                  - код для Вспомогательных интсрументов
-│   ├── realisation/        - Сюда нужно вставить реализацию
+├── utils/                  - код для вспомогательных инструментов
+│   ├── realization/        - Сюда нужно вставить реализацию
 │   │   ├── utils.h
 │   │   └── utils.cpp
 │   └── bypass/             - Здесь хранится заглушка
@@ -165,20 +165,28 @@ option(BUILD_UTILS "Build utils module" ON)
 
 ```
 
-Также есть флаг для сборки в Realise/Debug
+Также есть флаг для сборки в Release/Debug
 ```
 # Настройка типов сборки
 if(NOT CMAKE_BUILD_TYPE)
-    # Можно установить "Debug" или "Realise"
+    # Можно установить "Debug" или "Release"
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 ```
 
 Поправив при надобности CMakeLists.txt можно приступить к сборке:
-* Найти доступные компиляторы: Cntr + Shift + P -> CMake: Scan for kits
-* Установить необходимый компилятор: Cntr + Shift + P -> CMake: Select a Kit
-* Сконфигурировать проект: Cntr + Shift + P -> CMake: Configure
-* Собрать проект: Cntr + Shift + P -> CMake: Build
+* Найти доступные компиляторы: Ctrl + Shift + P -> CMake: Scan for kits
+* Установить необходимый компилятор: Ctrl + Shift + P -> CMake: Select a Kit
+* Сконфигурировать проект: Ctrl + Shift + P -> CMake: Configure
+* Собрать проект: Ctrl + Shift + P -> CMake: Build
+
+> [!CAUTION]
+> Если встречается ошибка вида:
+> ```
+> CMake Error at build/_deps/yaml-cpp-src/CMakeLists.txt:2 (cmake_minimum_required):
+>   Compatibility with CMake < 3.5 has been removed from CMake.
+> ```
+> то собрать проект через `./unsafe_build.sh`.
 
 Исходники будут находится в папке $build/bin/$.
 
@@ -198,5 +206,5 @@ sh run.sh server
 
 
 ### 6) Отладка
-* Через значек с жучком на интерфейсе VSCode (или Cntrl + Shift + D)
-* ИЛИ Cntrl + Shift + P -> Cmake: Debug -> Выбираем нужный модуль
+* Через значок с жучком на интерфейсе VSCode (или Ctrl + Shift + D)
+* ИЛИ Ctrl + Shift + P -> Cmake: Debug -> Выбираем нужный модуль

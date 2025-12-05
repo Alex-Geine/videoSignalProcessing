@@ -4,11 +4,9 @@
 #include <opencv2/opencv.hpp>
 #include <chrono>
 #include <thread>
-
-// Весь ниже закомментированный код для ваших дальнейших добавлений
-
-//#include <zmq.hpp>
-//#include "ImageStructure.hpp"
+#include <filesystem>
+#include <zmq.hpp>
+#include "ImageStructure.hpp"
 
 
 
@@ -17,18 +15,21 @@ class Capturer
 private:
 	cv::VideoCapture cap;
 	uint64_t frame_counter;
-	/*
+	std::filesystem::path temp_dir;
+
 	zmq::context_t zmq_ctx;
 	zmq::socket_t socket;
-	*/
+
 public:
 	Capturer() : frame_counter(0)
-		//, zmq_ctx(1)
-		//, socket(zmq_ctx, zmq::socket_type::push)
+		, zmq_ctx(1)
+		, socket(zmq_ctx, zmq::socket_type::push)
 	{
 		std::cout << "=== Capturer Initialization ===" << std::endl;
+		temp_dir = "./camera_capture";
+		std::filesystem::create_directories(temp_dir);
 		init_camera();
-		//init_zmq();
+		init_zmq();
 		std::cout << "======================================================" << std::endl;
 	}
 
@@ -36,15 +37,14 @@ private:
 	void init_camera()
 	{
 		std::cout << "Searching for camera..." << std::endl;
-		for (int i = 0; i < 10; i++) // Поиск доступной камеры (0-9)
+		for (int i = 0; i < 10; i++)
 		{
-			cap.open(i); // Попытка открыть камеру с текущим ID
+			cap.open(i);
 			if (cap.isOpened())
 			{
-				// Установка параметров камеры
-				cap.set(cv::CAP_PROP_FRAME_WIDTH, 640); // Ширина кадра
-				cap.set(cv::CAP_PROP_FRAME_HEIGHT, 480); // Высота кадра
-				cap.set(cv::CAP_PROP_FPS, 30); // Частота кадров
+				cap.set(cv::CAP_PROP_FRAME_WIDTH, 640);
+				cap.set(cv::CAP_PROP_FRAME_HEIGHT, 480);
+				cap.set(cv::CAP_PROP_FPS, 30);
 				std::cout << "- [ OK ] Camera found at ID: " << i << std::endl;
 				return;
 			}
@@ -52,17 +52,26 @@ private:
 		throw std::runtime_error("- [FAIL] No camera found!");
 	}
 
-	/*
+
 	void init_zmq()
 	{
-	   try {
-			socket.bind("tcp://127.0.0.1:5555");
-			std::cout << "- [ OK ] ZMQ socket bound to tcp://127.0.0.1:5555" << std::endl;
+		try {
+			
+			int send_buffer_limit = 100;
+			socket.set(zmq::sockopt::sndhwm, send_buffer_limit);
+
+			socket.set(zmq::sockopt::linger, 0);
+			socket.set(zmq::sockopt::immediate, 1);
+
+			socket.bind("tcp://localhost:5555");
+
+			std::cout << "- [ OK ] ZMQ socket bound" << std::endl;
+			std::cout << "- [ INFO ] Send buffer limit (HWM): " << send_buffer_limit << " messages" << std::endl;
 		}
 		catch (const zmq::error_t& e) {
 			throw std::runtime_error(std::string("- [FAIL] ZMQ bind error: ") + e.what());
 		}
-	*/
+	}
 
 
 public:
@@ -71,49 +80,62 @@ public:
 		std::cout << "=== Capturer Started ===" << std::endl;
 		std::cout << "Displaying camera feed..." << std::endl;
 
-		cv::Mat frame; // Переменная для хранения кадра
-		while (true) // Чтение кадра с камеры
+		cv::Mat frame;
+		int dropped_frames = 0;
+
+		while (true)
 		{
-			//if (!cap.read(frame) || frame.empty())
-			if (cap.read(frame) && !frame.empty())
+			if (!cap.read(frame) || frame.empty())
+				// if (cap.read(frame) && !frame.empty())
 			{
 				std::cout << "- [FAIL] Failed to grab frame" << std::endl;
-				std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Пауза при ошибке чтения кадра
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
 				continue;
 			}
 
-			/*
-			// 1. Сериализация кадра
+
+			// Seriliazation
 			ImageStructure is1(frame, frame_counter);
 			auto serialized = is1.serialize();
 
-			// 2. Отправка через ZMQ
 			zmq::message_t msg(serialized.size());
 			memcpy(msg.data(), serialized.data(), serialized.size());
-			socket.send(msg, zmq::send_flags::none);
 
-			// 3. Вывод информации о кадре (Удалить ниже вывод о [ OK ] Captured frame)
+			zmq::send_flags flags = zmq::send_flags::dontwait;
+			auto result = socket.send(msg, flags);
+
+			if (!result.has_value()) {
+				dropped_frames++;
+				if (dropped_frames % 50 == 0) {
+					std::cout << "- [ WARN ] Buffer full, dropped " << dropped_frames << " frames total" << std::endl;
+				}
+				continue;
+			}
+
 			std::cout << "- [ OK ] Sent frame: " << frame_counter
 				<< " Size: " << frame.cols << "x" << frame.rows
 				<< " Channels: " << frame.channels()
 				<< " Serialized size: " << serialized.size() << " bytes" << std::endl;
-			*/
 
-			// Отображение кадра в окне
-			cv::imshow("Capturer - Camera Feed", frame);
 
-			// Вывод информации о кадре в cmd
+			//cv::imshow("Capturer - Camera Feed", frame);
+
+			if (frame_counter) {
+				std::string filename = (temp_dir / ("frame_" + std::to_string(frame_counter) + ".jpg")).string();
+				cv::imwrite(filename, frame);
+				//std::cout << "  Saved: " << filename << std::endl;
+			}
+
+
 			std::cout << "- [ OK ] Captured frame: " << frame_counter++
 				<< " Size: " << frame.cols << "x" << frame.rows
 				<< " Channels: " << frame.channels() << std::endl;
 
-			// Не работает, завершай через Ctrl+C
-			if (cv::waitKey(1) == 27) break; // Проверка нажатия ESC для выхода
+			//if (cv::waitKey(1) == 27) break;
 		}
 
-		cap.release(); // Освобождение ресурсов камеры
-		cv::destroyAllWindows(); // Закрытие всех окон
-		std::cout << "=== Capturer Stopped ===" << std::endl;
+		cap.release();
+		cv::destroyAllWindows();
 	}
 };
 
@@ -126,7 +148,7 @@ int main()
 {
 	try
 	{
-		Capturer capturer; // Создание объекта камеры
+		Capturer capturer;
 		capturer.run();
 		return 0;
 	}
@@ -139,8 +161,3 @@ int main()
 	//server.process();
 	//return 0;
 }
-
-
-
-
-

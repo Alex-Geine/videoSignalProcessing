@@ -14,3 +14,5 @@ postprocessor:
   output_dir: "pic/postProcessor/"
   processed_prefix: "proc_"
   bare_prefix: "bare_"
+  max_frames: 250
+  timeout_duration: 5000

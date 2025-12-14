@@ -25,7 +25,7 @@ int main() {
     pp_client.loadConfig();
     
     std::string worker_ip = worker_client.getConfig("worker.ip");
-    int worker_port = std::stoi(worker_client.getConfig("worker.port"));
+    // int worker_port = std::stoi(worker_client.getConfig("worker.port"));
     std::string pp_ip = pp_client.getConfig("postprocessor.ip");
     int pp_port = std::stoi(pp_client.getConfig("postprocessor.port"));
     

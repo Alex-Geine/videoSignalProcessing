@@ -1,0 +1,28 @@
+{
+    "version": 8,
+    "configurePresets": [
+        {
+            "name": "def",
+            "displayName": "GCC 13.3.0 x86_64-linux-gnu",
+            "description": "Using compilers: C = /usr/bin/gcc-13, CXX = /usr/bin/g++-13",
+            "binaryDir": "${sourceDir}/build/",
+            "cacheVariables": {
+                "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+                "CMAKE_C_COMPILER": "/usr/bin/gcc-13",
+                "CMAKE_CXX_COMPILER": "/usr/bin/g++-13",
+                "CMAKE_BUILD_TYPE": "Debug",
+                "BUILD_WORKER_REAL": "ON",
+                "BUILD_POSTPROCESSOR_REAL": "ON"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "def",
+            "description": "",
+            "displayName": "",
+            "configurePreset": "def",
+            "jobs": 15
+        }
+    ]
+}

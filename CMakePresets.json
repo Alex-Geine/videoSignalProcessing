@@ -14,6 +14,22 @@
                 "BUILD_WORKER_REAL": "ON",
                 "BUILD_POSTPROCESSOR_REAL": "ON"
             }
+        },
+        {
+          "name": "defWin",
+          "displayName": "w64devkit GCC (local in /ext)",
+          "description": "Use w64devkit bundled in project's ext/ folder",
+          "generator": "MinGW Makefiles",
+          "binaryDir": "${sourceDir}/build/",
+          "cacheVariables": {
+            "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
+            "CMAKE_C_COMPILER": "${sourceDir}/ext/w64devkit-1.16.1/w64devkit/bin/gcc.exe",
+            "CMAKE_CXX_COMPILER": "${sourceDir}/ext/w64devkit-1.16.1/w64devkit/bin/g++.exe",
+            "CMAKE_MAKE_PROGRAM": "${sourceDir}/ext/w64devkit-1.16.1/w64devkit/bin/mingw32-make.exe",
+            "CMAKE_BUILD_TYPE": "Debug",
+            "BUILD_WORKER_REAL": "ON",
+            "BUILD_POSTPROCESSOR_REAL": "ON"
+          }
         }
     ],
     "buildPresets": [
@@ -22,6 +38,13 @@
             "description": "",
             "displayName": "",
             "configurePreset": "def",
+            "jobs": 15
+        },
+        {
+            "name": "defWin",
+            "description": "",
+            "displayName": "",
+            "configurePreset": "defWin",
             "jobs": 15
         }
     ]

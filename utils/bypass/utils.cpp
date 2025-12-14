@@ -56,7 +56,7 @@ Utils::~Utils() {
 
 void Utils::loadConfig(const std::string& config_path) {
     try {
-        pImpl->config = YAML::LoadFile(config_path);
+        pImpl->config = YAML::Clone(YAML::LoadFile(config_path));
         std::cout << "Configuration loaded from: " << config_path << std::endl;
     } catch (const YAML::Exception& e) {
         std::cout << "Error loading config file: " << e.what() << std::endl;

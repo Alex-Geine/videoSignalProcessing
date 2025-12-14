@@ -1,0 +1,23 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "${workspaceFolder}/build/_deps/libzmq-src/include",
+                "${workspaceFolder}/build/_deps/cppzmq-src",
+                "${workspaceFolder}/build/_deps/yaml-cpp-src/include",
+                "/usr/include/opencv4"
+            ],
+            "defines": [
+                "ZMQ_STATIC"
+            ],
+            "compilerPath": "/usr/bin/g++",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "linux-gcc-x64",
+            "configurationProvider": "ms-vscode.cmake-tools"
+        }
+    ],
+    "version": 4
+}

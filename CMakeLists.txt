@@ -5,13 +5,22 @@ project(VideoProcessingSystem VERSION 1.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Решение проблем совместимости с зависимостями
+if(CMAKE_VERSION VERSION_LESS 3.20)
+    set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
+endif()
+
+# Отключаем предупреждения о политиках для зависимостей
+cmake_policy(SET CMP0048 NEW)  # Project version
+cmake_policy(SET CMP0077 NEW)  # Option honor
+
 # ============================================================================
 # НАСТРОЙКА СБОРКИ И ОТЛАДКИ
 # ============================================================================
 
 # Настройка типов сборки
 if(NOT CMAKE_BUILD_TYPE)
-    # Можно установить "Debug" или "Realise"
+    # Можно установить "Debug" или "Release"
     set(CMAKE_BUILD_TYPE Debug)
 endif()
 
@@ -223,7 +232,7 @@ function(create_module module_name)
     string(TOUPPER ${module_name} MODULE_NAME_UPPER)
     
     if(BUILD_${MODULE_NAME_UPPER}_REAL)
-        set(${module_name}_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/${module_name}/realisation)
+        set(${module_name}_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/${module_name}/realization)
         message(STATUS "Building ${module_name} with REAL implementation")
     else()
         set(${module_name}_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/${module_name}/bypass)
@@ -263,7 +272,7 @@ function(create_module module_name)
         
         # Добавляем include директории для utils
         target_include_directories(${module_name} PUBLIC
-            ${CMAKE_CURRENT_SOURCE_DIR}/utils/realisation
+            ${CMAKE_CURRENT_SOURCE_DIR}/utils/realization
             ${CMAKE_CURRENT_SOURCE_DIR}/utils/bypass
         )
         
@@ -284,7 +293,7 @@ function(create_module module_name)
         
         # Определяем откуда брать utils.h в зависимости от версии utils
         if(BUILD_UTILS_REAL)
-            set(UTILS_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/utils/realisation)
+            set(UTILS_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/utils/realization)
         else()
             set(UTILS_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/utils/bypass)
         endif()

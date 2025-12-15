@@ -1,16 +1,15 @@
 server:
   ip: "localhost"
-  port: 5555
+  zmq_port: 5555
   input_image: "pic/server/photo.bmp"
 
 worker:
-  ip: "localhost"
-  port: 5556
   output_dir: "pic/worker/"
+  server_endpoint: "tcp://localhost:5555"
+  postprocessor_endpoint: "tcp://localhost:5557"  # ← исправлено!
 
 postprocessor:
-  ip: "localhost"
-  port: 5557
+  zmq_port: 5557
   output_dir: "pic/postProcessor/"
   processed_prefix: "proc_"
   bare_prefix: "bare_"

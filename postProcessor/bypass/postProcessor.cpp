@@ -1,65 +1,76 @@
+// postprocessor/bypass/postProcessor.cpp
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <filesystem>
+#include <zmq.hpp>
+#include "ImageStructure.hpp"
 #include "utils.h"
 
 int main() {
-    Utils postprocessor;
-    postprocessor.loadConfig();
-    
-    std::string ip = postprocessor.getConfig("postprocessor.ip");
-    int port = std::stoi(postprocessor.getConfig("postprocessor.port"));
-    std::string output_dir = postprocessor.getConfig("postprocessor.output_dir");
-    std::string proc_prefix = postprocessor.getConfig("postprocessor.processed_prefix");
-    std::string bare_prefix = postprocessor.getConfig("postprocessor.bare_prefix");
-    
-    static int image_counter = 1;
-    
-    if (!postprocessor.initializeServer(ip, port)) {
-        return -1;
-    }
-    
-    std::cout << "PostProcessor started. Waiting for server..." << std::endl;
-    
+    std::cout << "=== POSTPROCESSOR (BYPASS MODE) STARTED ===" << std::endl;
+
+#ifdef DEBUG
+    std::cout << "DEBUG MODE ENABLED" << std::endl;
+#endif
+
+    // 1. Загружаем конфигурацию
+    Utils config;
+    config.loadConfig();
+
+    int port = std::stoi(config.getConfig("postprocessor.zmq_port")); // 5557
+    std::string output_dir = config.getConfig("postprocessor.output_dir");
+    std::string prefix = config.getConfig("postprocessor.processed_prefix");
+
+    // Создаём директорию вывода
+    std::filesystem::create_directories(output_dir);
+
+    // 2. ZeroMQ: PULL-сокет для приёма от worker'а
+    zmq::context_t ctx(1);
+    zmq::socket_t socket(ctx, zmq::socket_type::pull);
+    std::string endpoint = "tcp://*:" + std::to_string(port);
+    socket.bind(endpoint);
+
+    std::cout << "Bound to: " << endpoint << std::endl;
+    std::cout << "Output dir: " << output_dir << std::endl;
+    std::cout << "Filename prefix: " << prefix << std::endl;
+
+    // 3. Основной цикл приёма
     while (true) {
-        std::cout << "\nWaiting for server..." << std::endl;
-        
-        // Ждем запрос от сервера
-        std::string request = postprocessor.receiveMessage();
-        if (request == "READY") {
-            std::cout << "Server is ready. Receiving images..." << std::endl;
-            
-            // Отправляем подтверждение, что готовы получать изображения
-            postprocessor.sendMessage("SEND_FIRST_IMAGE");
-            
-            // Получаем первое изображение (обработанное)
-            cv::Mat processed_image = postprocessor.receiveImage();
-            if (!processed_image.empty()) {
-                postprocessor.setCurrentImage(processed_image);
-                std::string proc_filename = output_dir + proc_prefix + std::to_string(image_counter) + ".bmp";
-                postprocessor.saveImage(proc_filename);
-                std::cout << "Saved processed image: " << proc_filename << std::endl;
-                
-                // Подтверждаем получение первого изображения
-                postprocessor.sendMessage("SEND_SECOND_IMAGE");
-                
-                // Получаем второе изображение (оригинальное)
-                cv::Mat original_image = postprocessor.receiveImage();
-                if (!original_image.empty()) {
-                    postprocessor.setCurrentImage(original_image);
-                    std::string bare_filename = output_dir + bare_prefix + std::to_string(image_counter) + ".bmp";
-                    postprocessor.saveImage(bare_filename);
-                    std::cout << "Saved original image: " << bare_filename << std::endl;
-                    
-                    // Подтверждаем завершение
-                    postprocessor.sendMessage("DONE");
-                    
-                    std::cout << "Postprocessing completed. Total: " << image_counter << std::endl;
-                    image_counter++;
-                }
-            }
+        zmq::message_t msg;
+        auto result = socket.recv(msg, zmq::recv_flags::none);
+
+        if (!result.has_value()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            continue;
+        }
+
+        // Десериализуем
+        ImageStructure is;
+        if (!is.deserialize(msg)) {
+            std::cerr << "Failed to deserialize incoming message" << std::endl;
+            continue;
+        }
+
+        cv::Mat image = is.getImage();
+        uint64_t frame_id = is.getFrameId();
+
+        if (image.empty()) {
+            std::cerr << "Received empty image" << std::endl;
+            continue;
+        }
+
+        // Формируем имя файла: proc_123.bmp
+        std::string filename = output_dir + prefix + std::to_string(frame_id) + ".bmp";
+
+        // Сохраняем
+        if (cv::imwrite(filename, image)) {
+            std::cout << "- [ OK ] Saved: " << filename
+                      << " (" << image.cols << "x" << image.rows << ")" << std::endl;
+        } else {
+            std::cerr << "FAILED to save: " << filename << std::endl;
         }
     }
-    
+
     return 0;
 }

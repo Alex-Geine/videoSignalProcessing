@@ -6,6 +6,8 @@
 #include <filesystem>
 #include <zmq.hpp>
 #include "ImageStructure.hpp"
+#include "utils.h"
+
 
 class Capturer
 {

@@ -1,91 +1,81 @@
+// server/bypass/server.cpp
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <opencv2/opencv.hpp>
+#include <filesystem>
+#include <zmq.hpp>
+#include "ImageStructure.hpp"
 #include "utils.h"
 
 int main() {
-    // Принудительная точка останова для отладки
-    std::cout << "=== SERVER STARTING ===" << std::endl;
-    
-    #ifdef DEBUG
+    std::cout << "=== SERVER (BYPASS MODE) STARTED ===" << std::endl;
+
+#ifdef DEBUG
     std::cout << "DEBUG MODE ENABLED" << std::endl;
-    #endif
+#endif
+
+    // 1. Загружаем конфигурацию
     Utils server;
     server.loadConfig();
-    
-    std::string ip = server.getConfig("server.ip");
-    int port = std::stoi(server.getConfig("server.port"));
-    std::string input_image = server.getConfig("server.input_image");
-    
-    // Подключаемся к worker и postprocessor
-    Utils worker_client;
-    Utils pp_client;
-    
-    worker_client.loadConfig();
-    pp_client.loadConfig();
-    
-    std::string worker_ip = worker_client.getConfig("worker.ip");
-    // int worker_port = std::stoi(worker_client.getConfig("worker.port"));
-    std::string pp_ip = pp_client.getConfig("postprocessor.ip");
-    int pp_port = std::stoi(pp_client.getConfig("postprocessor.port"));
-    
-    if (!server.initializeServer(ip, port)) {
+
+    std::string input_image_path = server.getConfig("server.input_image");
+    std::string zmq_endpoint = "tcp://*:" + server.getConfig("server.zmq_port"); // например, "5555"
+
+    // 2. Загружаем изображение один раз
+    cv::Mat image = cv::imread(input_image_path);
+    if (image.empty()) {
+        std::cerr << "ERROR: Cannot load input image: " << input_image_path << std::endl;
         return -1;
     }
+    std::cout << "Loaded emulation image: " << input_image_path
+              << " (" << image.cols << "x" << image.rows << ")" << std::endl;
+
+    // 3. Инициализируем ZeroMQ
+    zmq::context_t ctx(1);
+    zmq::socket_t socket(ctx, zmq::socket_type::push);
     
-    std::cout << "Server started. Waiting for connections..." << std::endl;
-    
-    while (true) {
-        std::cout << "\n=== New processing cycle ===" << std::endl;
-        
-        // 1. Ждем запрос от клиента
-        std::string request = server.receiveMessage();
-        if (request == "READY") {
-            std::cout << "Client is ready" << std::endl;
-            
-            // 2. Отправляем изображение клиенту
-            if (server.loadImage(input_image)) {
-                cv::Mat original_image = server.getCurrentImage();
-                server.sendImage(original_image);
-                std::cout << "Original image sent to client" << std::endl;
-                
-                // 3. Ждем обработанное изображение от клиента
-                cv::Mat processed_image = server.receiveImage();
-                if (!processed_image.empty()) {
-                    std::cout << "Processed image received from client" << std::endl;
-                    
-                    // 4. Отправляем оба изображения в postprocessor
-                    if (pp_client.initializeClient(pp_ip, pp_port)) {
-                        pp_client.sendMessage("READY");
-                        
-                        // Ждем подтверждение для отправки первого изображения
-                        std::string ack1 = pp_client.receiveMessage();
-                        if (ack1 == "SEND_FIRST_IMAGE") {
-                            pp_client.sendImage(processed_image);
-                            
-                            // Ждем подтверждение для отправки второго изображения
-                            std::string ack2 = pp_client.receiveMessage();
-                            if (ack2 == "SEND_SECOND_IMAGE") {
-                                pp_client.sendImage(original_image);
-                                
-                                // Ждем окончательное подтверждение
-                                std::string pp_ack = pp_client.receiveMessage();
-                                if (pp_ack == "DONE") {
-                                    std::cout << "Postprocessor completed" << std::endl;
-                                }
-                            }
-                        }
-                    }
-                    
-                    // 5. Подтверждаем клиенту
-                    server.sendMessage("DONE");
-                    std::cout << "Cycle completed successfully" << std::endl;
-                }
-            }
-        }
-        
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    try {
+        socket.set(zmq::sockopt::sndhwm, 100);
+        socket.set(zmq::sockopt::linger, 0);
+        socket.bind(zmq_endpoint);
+        std::cout << "Bound ZMQ socket to: " << zmq_endpoint << std::endl;
+    } catch (const zmq::error_t& e) {
+        std::cerr << "ZMQ bind error: " << e.what() << std::endl;
+        return -1;
     }
-    
+
+    // 4. Эмуляция бесконечного потока кадров
+    uint64_t frame_counter = 0;
+    std::cout << "Starting frame emulation loop..." << std::endl;
+
+    while (true) {
+        // Создаём копию изображения (на случай, если ImageStructure изменяет данные)
+        cv::Mat frame = image.clone();
+
+        // Сериализуем как в реальной версии
+        ImageStructure is(frame, frame_counter);
+        auto serialized = is.serialize();
+
+        zmq::message_t msg(serialized.size());
+        memcpy(msg.data(), serialized.data(), serialized.size());
+
+        // Отправляем неблокирующе (как в real)
+        auto result = socket.send(msg, zmq::send_flags::dontwait);
+        if (!result.has_value()) {
+            // Буфер переполнен — просто пропускаем кадр (как в real)
+            if (frame_counter % 50 == 0) {
+                std::cout << "- [ WARN ] Buffer full, dropping frame " << frame_counter << std::endl;
+            }
+        } else {
+            std::cout << "- [ OK ] Sent frame: " << frame_counter
+                      << " Size: " << frame.cols << "x" << frame.rows
+                      << " Serialized: " << serialized.size() << " bytes" << std::endl;
+        }
+
+        frame_counter++;
+        std::this_thread::sleep_for(std::chrono::milliseconds(33)); // ~30 FPS
+    }
+
     return 0;
 }

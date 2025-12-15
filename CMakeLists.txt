@@ -6,9 +6,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Решение проблем совместимости с зависимостями
-if(CMAKE_VERSION VERSION_LESS 3.20)
-    set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
-endif()
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
 # Отключаем предупреждения о политиках для зависимостей
 cmake_policy(SET CMP0048 NEW)  # Project version
@@ -27,10 +25,25 @@ endif()
 message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
 
 # Флаги компиляции для разных типов сборки
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -O0 -DDEBUG -Wall -Wextra ")
-set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O2 -g -DNDEBUG")
-set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} -Os -DNDEBUG")
+# ============================================================================
+# КОМПИЛЯТОР-ЗАВИСИМЫЕ ФЛАГИ
+# ============================================================================
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    # GCC / Clang (Linux, macOS, MinGW)
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -g -O0 -DDEBUG -Wall -Wextra")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O2 -g -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} -Os -DNDEBUG")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+elseif(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    # MSVC (Visual Studio)
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /Zi /Od /DDEBUG /D_CONSOLE /W4")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2 /DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /O2 /Zi /DNDEBUG")
+    set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} /Os /DNDEBUG")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W4 /EHsc")
+endif()
 
 # Дополнительные флаги для всех сборок
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
@@ -357,6 +370,20 @@ endif()
 
 if(BUILD_UTILS)
     create_module(utils)
+endif()
+
+if(WIN32 AND OpenCV_FOUND AND TARGET worker)
+    set(OPENCV_DLL_DIR "${OpenCV_DIR}/../x64/vc16/bin")
+    if(EXISTS "${OPENCV_DLL_DIR}")
+        add_custom_command(TARGET worker POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                "${OPENCV_DLL_DIR}"
+                $<TARGET_FILE_DIR:worker>
+            COMMENT "Copying OpenCV DLLs to output directory"
+        )
+    else()
+        message(WARNING "OpenCV DLL directory not found: ${OPENCV_DLL_DIR}")
+    endif()
 endif()
 
 # ============================================================================

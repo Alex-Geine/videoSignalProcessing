@@ -3,6 +3,8 @@
 #include <vector>
 #include <yaml-cpp/yaml.h>
 
+#include <filesystem>
+
 // ZeroMQ
 #include <zmq.hpp>
 #include <zmq_addon.hpp>
@@ -108,8 +110,10 @@ bool Utils::saveImage(const std::string& path) {
         std::cout << "No image to save" << std::endl;
         return false;
     }
-    
-    bool success = cv::imwrite(path, pImpl->current_image);
+
+    std::string normalized = std::filesystem::path(path).string();
+    bool success = cv::imwrite(normalized, pImpl->current_image);
+
     if (success) {
         std::cout << "Image saved: " << path << std::endl;
     } else {

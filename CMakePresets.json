@@ -16,20 +16,18 @@
             }
         },
         {
-          "name": "defWin",
-          "displayName": "w64devkit GCC (local in /ext)",
-          "description": "Use w64devkit bundled in project's ext/ folder",
-          "generator": "MinGW Makefiles",
-          "binaryDir": "${sourceDir}/build/",
-          "cacheVariables": {
-            "CMAKE_INSTALL_PREFIX": "${sourceDir}/out/install/${presetName}",
-            "CMAKE_C_COMPILER": "${sourceDir}/ext/w64devkit-1.16.1/w64devkit/bin/gcc.exe",
-            "CMAKE_CXX_COMPILER": "${sourceDir}/ext/w64devkit-1.16.1/w64devkit/bin/g++.exe",
-            "CMAKE_MAKE_PROGRAM": "${sourceDir}/ext/w64devkit-1.16.1/w64devkit/bin/mingw32-make.exe",
-            "CMAKE_BUILD_TYPE": "Debug",
-            "BUILD_WORKER_REAL": "ON",
-            "BUILD_POSTPROCESSOR_REAL": "ON"
-          }
+            "name": "defWin-MSVC",
+            "displayName": "MSVC + System OpenCV",
+            "description": "Build with Visual Studio compiler",
+            "generator": "Visual Studio 17 2022",
+            "architecture": "x64",
+            "binaryDir": "${sourceDir}/build_msvc",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "BUILD_WORKER_REAL": "ON",
+                "BUILD_POSTPROCESSOR_REAL": "ON",
+                "OpenCV_DIR": "${sourceDir}/ext/opencv/build"
+            }
         }
     ],
     "buildPresets": [

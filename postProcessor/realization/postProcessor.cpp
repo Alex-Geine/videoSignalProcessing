@@ -1,19 +1,15 @@
 #include <iostream>
+#include <thread>
+#include <chrono>
+#include <filesystem>
+#include <zmq.hpp>
 #include "postProcessor.h"
-
-// Файл реализации PostProcessor.cpp
-// Содержит реализацию методов класса PostProcessor
-
-#include <algorithm>
-#include <ctime>
-#include <iomanip>
-#include <sstream>
-#include <filesystem> // Добавляем для работы с файловой системой
+#include "ImageStructure.hpp"
 #include "utils.h"
 
 namespace fs = std::filesystem;
 
-// Конструктор с параметрами по умолчанию
+// Constructor with default parameters
 PostProcessor::PostProcessor(int bufferSize, int timeoutMs, const std::string &outputDir)
     : maxFrames(bufferSize),
       currentFrameIndex(0),
@@ -23,98 +19,96 @@ PostProcessor::PostProcessor(int bufferSize, int timeoutMs, const std::string &o
       timeoutDuration(timeoutMs),
       outputDirectory(outputDir)
 {
-    // Создаем директорию для сохранения видео, если она не существует
+    // Create output directory if it doesn't exist
     if (!outputDirectory.empty())
     {
         try
         {
             fs::create_directories(outputDirectory);
-            std::cout << "Директория для сохранения видео: " << outputDirectory << std::endl;
+            std::cout << "Video output directory: " << outputDirectory << std::endl;
         }
         catch (const fs::filesystem_error &e)
         {
-            std::cerr << "Ошибка при создании директории " << outputDirectory
+            std::cerr << "Error creating directory " << outputDirectory
                       << ": " << e.what() << std::endl;
-            // Используем текущую директорию как запасной вариант
+            // Fallback to current directory
             outputDirectory = ".";
         }
     }
     else
     {
-        outputDirectory = "."; // Сохраняем в текущую директорию
+        outputDirectory = "."; // Save to current directory
     }
 
-    // Проверка корректности размера буфера
+    // Ensure buffer size is divisible by 3
     if (maxFrames % 3 != 0)
     {
-        // Если размер не кратен 3, увеличиваем до ближайшего кратного 3
+        // Round up to the nearest multiple of 3
         maxFrames = ((maxFrames / 3) + 1) * 3;
-        std::cout << "Размер буфера скорректирован до " << maxFrames
-                  << " (должен быть кратен 3)" << std::endl;
+        std::cout << "Buffer size adjusted to " << maxFrames
+                  << " (must be divisible by 3)" << std::endl;
     }
 
-    // Вычисление размера одной части буфера
+    // Calculate size of one buffer segment (1/3 of total)
     bufferPartSize = maxFrames / 3;
 
-    // Инициализация буфера
+    // Initialize frame buffer
     frameBuffer.resize(maxFrames);
     initializeBuffer();
 
-    // Инициализация времени последнего кадра
+    // Initialize last frame timestamp to now
     lastFrameTime = std::chrono::steady_clock::now();
 
-    std::cout << "PostProcessor инициализирован с размером буфера: "
-              << maxFrames << " кадров" << std::endl;
-    std::cout << "Размер одной части: " << bufferPartSize << " кадров" << std::endl;
+    std::cout << "PostProcessor initialized with buffer size: "
+              << maxFrames << " frames" << std::endl;
+    std::cout << "Size of one segment: " << bufferPartSize << " frames" << std::endl;
 }
 
-// Деструктор
+// Destructor
 PostProcessor::~PostProcessor()
 {
-    stop(); // Останавливаем постобработчик перед удалением
+    stop(); // Stop processing before destruction
 }
 
-// Инициализация буфера черными кадрами
+// Initialize buffer with black frames
 void PostProcessor::initializeBuffer()
 {
-    // Проходим по всем элементам буфера
+    // Iterate over all buffer slots
     for (int i = 0; i < maxFrames; i++)
     {
-        // Создаем черный кадр с минимальными размерами
-        // Реальные размеры будут установлены при получении первого кадра
+        // Create a black placeholder frame (will be updated on first real frame)
         frameBuffer[i].frame = cv::Mat::zeros(480, 640, CV_8UC3);
-        frameBuffer[i].index = -1; // Индекс -1 означает пустой кадр
+        frameBuffer[i].index = -1; // Index -1 means "empty"
     }
-    std::cout << "Буфер инициализирован черными кадрами" << std::endl;
+    std::cout << "Buffer initialized with black frames" << std::endl;
 }
 
-// Создание черного кадра заданного размера
+// Create a black frame of specified dimensions
 cv::Mat PostProcessor::createBlackFrame(int width, int height)
 {
-    // Создаем матрицу заданного размера, заполненную нулями (черный цвет)
-    // CV_8UC3 означает: 8 бит на канал, 3 канала (BGR)
+    // Create a zero-filled matrix (black image)
+    // CV_8UC3 = 8-bit unsigned, 3 channels (BGR)
     return cv::Mat::zeros(height, width, CV_8UC3);
 }
 
-// Добавление нового кадра в буфер
+// Add a new frame to the circular buffer
 void PostProcessor::addFrame(const cv::Mat &frame, int index)
 {
-    std::lock_guard<std::mutex> lock(bufferMutex); // Блокируем мьютекс для безопасного доступа
+    std::lock_guard<std::mutex> lock(bufferMutex); // Thread-safe access
 
-    // Проверяем, что кадр не пустой
+    // Skip empty frames
     if (frame.empty())
     {
-        std::cerr << "Предупреждение: получен пустой кадр с индексом " << index << std::endl;
+        std::cerr << "Warning: received empty frame with index " << index << std::endl;
         return;
     }
 
-    // Обновляем время получения последнего кадра
+    // Update timestamp of last received frame
     lastFrameTime = std::chrono::steady_clock::now();
 
-    // Если это первый кадр, проверяем размеры черных кадров
+    // On first frame, adjust all black frames to match real frame size
     if (currentFrameIndex == 0)
     {
-        // Обновляем все черные кадры в буфере до правильного размера
         for (int i = 0; i < maxFrames; i++)
         {
             if (frameBuffer[i].frame.size() != frame.size())
@@ -123,36 +117,27 @@ void PostProcessor::addFrame(const cv::Mat &frame, int index)
             }
         }
     }
-    currentFrameIndex = index % maxFrames;
-    // Сохраняем кадр в буфер
-    if (currentFrameIndex < maxFrames)
-    {
-        frame.copyTo(frameBuffer[currentFrameIndex].frame); // Копируем кадр
-        frameBuffer[currentFrameIndex].index = index;       // Сохраняем индекс
-        currentFrameIndex++;                                // Увеличиваем индекс
 
-        std::cout << "Кадр " << index << " добавлен в буфер на позицию "
-                  << currentFrameIndex - 1 << std::endl;
+    // Use cyclic index based on frame ID
+    int bufferIndex = index % maxFrames;
+    frame.copyTo(frameBuffer[bufferIndex].frame);
+    frameBuffer[bufferIndex].index = index;
 
-        // Проверяем, нужно ли сохранять часть буфера
-        checkAndSaveIfNeeded();
-    }
-    else
-    {
-        std::cerr << "Ошибка: буфер переполнен" << std::endl;
-    }
+    std::cout << "Frame " << index << " added to buffer at position " << bufferIndex << std::endl;
+
+    // Check if a buffer segment is full and needs saving
+    checkAndSaveIfNeeded();
 }
 
-// Проверка необходимости сохранения части буфера
+// Check if a buffer segment is full and trigger saving
 void PostProcessor::checkAndSaveIfNeeded()
 {
-    // Определяем, какая часть буфера сейчас заполняется
     if (firstRun)
     {
-        // При первом прогоне ждем заполнения третьей части
+        // On first run, wait until the third segment starts filling
         if (currentFrameIndex >= bufferPartSize * 2)
         {
-            std::cout << "Первые две части заполнены, начинается заполнение третьей" << std::endl;
+            std::cout << "First two segments filled, starting third segment" << std::endl;
             currentlyFilling = BufferPart::THIRD;
             savePartToVideo(BufferPart::FIRST);
             firstRun = false;
@@ -161,48 +146,38 @@ void PostProcessor::checkAndSaveIfNeeded()
     else
     {
         int currentPart = currentFrameIndex / bufferPartSize;
-        std::cout << "currentPart " << currentPart << "\n";
-        std::cout << "currentlyFilling " << (int)currentlyFilling << "\n";
-        std::cout << "first cond " << (currentPart == 1 && (int)currentlyFilling == 0) << "\n";
-        std::cout << "second cond " << (currentPart == 2 && (int)currentlyFilling == 1) << "\n";
-        std::cout << "third cond " << (currentPart == 0 && (int)currentlyFilling == 2) << "\n";
-        std::cout << "all cond " << ((currentPart == 1 && (int)currentlyFilling == 0) || (currentPart == 2 && (int)currentlyFilling == 1) || (currentPart == 0 && (int)currentlyFilling == 2)) << "\n";
-        // При последующих прогонах проверяем границы частей
-        if (
-            (currentPart == 1 && (int)currentlyFilling == 0) ||
-            (currentPart == 2 && (int)currentlyFilling == 1) ||
-            (currentPart == 0 && (int)currentlyFilling == 2))
+
+        // Detect segment boundary crossings
+        if ((currentPart == 1 && currentlyFilling == BufferPart::FIRST) ||
+            (currentPart == 2 && currentlyFilling == BufferPart::SECOND) ||
+            (currentPart == 0 && currentlyFilling == BufferPart::THIRD))
         {
             switch (currentPart)
             {
             case 0:
                 currentlyFilling = BufferPart::FIRST;
-                // Сохраняем третью часть
                 savePartToVideo(BufferPart::SECOND);
                 break;
             case 1:
                 currentlyFilling = BufferPart::SECOND;
-                // Сохраняем первую часть
                 savePartToVideo(BufferPart::THIRD);
                 break;
             case 2:
                 currentlyFilling = BufferPart::THIRD;
-                // Сохраняем вторую часть
                 savePartToVideo(BufferPart::FIRST);
-                // Сбрасываем индекс для циклической записи
-                currentFrameIndex = 0;
+                currentFrameIndex = 0; // Reset for cyclic reuse
                 break;
             }
         }
     }
 }
 
-// Сохранение части буфера в видео
+// Save a buffer segment to a video file
 void PostProcessor::savePartToVideo(BufferPart partToSave)
 {
-    std::cout << "start save\n";
+    std::cout << "Starting save operation" << std::endl;
 
-    // Определяем индексы начала и конца сохраняемой части
+    // Determine buffer indices for the segment
     int startIdx, endIdx;
     switch (partToSave)
     {
@@ -220,7 +195,7 @@ void PostProcessor::savePartToVideo(BufferPart partToSave)
         break;
     }
 
-    // Проверяем, есть ли кадры для сохранения в этой части
+    // Check if segment contains any valid frames
     bool hasFrames = false;
     for (int i = startIdx; i <= endIdx; i++)
     {
@@ -231,23 +206,20 @@ void PostProcessor::savePartToVideo(BufferPart partToSave)
         }
     }
 
-    std::cout << "exist frames: " << (hasFrames ? "true" : "false") << std::endl;
+    std::cout << "Frames exist in segment: " << (hasFrames ? "true" : "false") << std::endl;
 
     if (!hasFrames)
     {
-        std::cout << "В части " << static_cast<int>(partToSave)
-                  << " нет кадров для сохранения" << std::endl;
+        std::cout << "No frames to save in segment " << static_cast<int>(partToSave) << std::endl;
         return;
     }
 
-    // Создаем копию кадров для сохранения
+    // Copy frames to temporary vector for safe async processing
     std::vector<FrameWithIndex> framesToSave;
     std::string currentOutputDir;
 
     {
-        // std::lock_guard<std::mutex> lock(bufferMutex);
-        std::cout << "is mutex\n";
-        // Копируем кадры из указанной части буфера
+        std::cout << "Acquired mutex, copying frames" << std::endl;
         for (int i = startIdx; i <= endIdx; i++)
         {
             FrameWithIndex frameCopy;
@@ -255,56 +227,48 @@ void PostProcessor::savePartToVideo(BufferPart partToSave)
             frameCopy.index = frameBuffer[i].index;
             framesToSave.push_back(frameCopy);
         }
-
-        // Сохраняем текущую директорию (захватим ее в лямбде)
         currentOutputDir = outputDirectory;
 
-        // Сбрасываем сохраненные кадры в буфере к черным кадрам
+        // Reset saved segment to black frames
         resetBufferPart(partToSave);
     }
 
-    std::cout << "created copying frames: " << framesToSave.size() << " frames\n";
+    std::cout << "Copied " << framesToSave.size() << " frames for saving" << std::endl;
 
-    // Проверяем, что есть кадры для сохранения
     if (framesToSave.empty())
     {
-        std::cout << "Нет кадров для сохранения после копирования\n";
+        std::cout << "No frames to save after copying" << std::endl;
         return;
     }
 
-    // Создаем локальную копию выходной директории
     std::string localOutputDir = currentOutputDir;
 
-    // Запускаем сохранение в отдельном потоке
+    // Save in background thread to avoid blocking main loop
     std::thread saveThread([this, framesToSave, partToSave, localOutputDir]() mutable
-                           {
+    {
         try
         {
-            std::cout << "start thread for part " << static_cast<int>(partToSave) << "\n";
-            
-            // Генерируем имя файла с временной меткой
+            std::cout << "Started save thread for segment " << static_cast<int>(partToSave) << std::endl;
+
+            // Generate timestamped filename
             auto now = std::chrono::system_clock::now();
             auto time_t_now = std::chrono::system_clock::to_time_t(now);
             std::tm tm_now;
-
-// Безопасное получение локального времени
 #ifdef _WIN32
-                localtime_s(&tm_now, &time_t_now);
+            localtime_s(&tm_now, &time_t_now);
 #else
-                localtime_r(&time_t_now, &tm_now);
+            localtime_r(&time_t_now, &tm_now);
 #endif
-            
+
             std::stringstream filename;
             filename << "video_part_" << static_cast<int>(partToSave) << "_"
                      << std::put_time(&tm_now, "%Y%m%d_%H%M%S") << ".avi";
-            
-            std::cout << "output directory: " << localOutputDir << "\n";
-            
-            // Формируем полный путь для сохранения
+
+            std::cout << "Output directory: " << localOutputDir << std::endl;
+
             std::string fullPath;
             if (!localOutputDir.empty() && localOutputDir != ".")
             {
-                // Создаем директорию, если она не существует
                 try
                 {
                     if (!fs::exists(localOutputDir))
@@ -317,20 +281,20 @@ void PostProcessor::savePartToVideo(BufferPart partToSave)
                 catch (const fs::filesystem_error& e)
                 {
                     std::cerr << "Error creating directory: " << e.what() << std::endl;
-                    fullPath = filename.str(); // Сохраняем в текущую директорию
+                    fullPath = filename.str();
                 }
             }
             else
             {
                 fullPath = filename.str();
             }
-            
-            std::cout << "fullPath: " << fullPath << "\n";
-            
-            // Сохраняем кадры в видео
+
+            std::cout << "Full path: " << fullPath << std::endl;
+
+            // Write frames to video file
             saveFramesToVideo(framesToSave, fullPath);
-            
-            std::cout << "Thread finished for part " << static_cast<int>(partToSave) << "\n";
+
+            std::cout << "Save thread finished for segment " << static_cast<int>(partToSave) << std::endl;
         }
         catch (const std::exception& e)
         {
@@ -339,36 +303,33 @@ void PostProcessor::savePartToVideo(BufferPart partToSave)
         catch (...)
         {
             std::cerr << "Unknown exception in save thread" << std::endl;
-        } });
+        }
+    });
 
-    // Отсоединяем поток, чтобы он работал независимо
     saveThread.detach();
 
-    std::cout << "Thread detached for part " << static_cast<int>(partToSave)
+    std::cout << "Detached save thread for segment " << static_cast<int>(partToSave)
               << ". Frames to save: " << framesToSave.size() << std::endl;
 
-    std::cout << "Запущено сохранение части " << static_cast<int>(partToSave)
-              << " в файл: " << outputDirectory << std::endl;
+    std::cout << "Started saving segment " << static_cast<int>(partToSave)
+              << " to file in: " << outputDirectory << std::endl;
 }
 
-// Сохранение кадров в видеофайл
+// Write a sequence of frames to a video file
 void PostProcessor::saveFramesToVideo(const std::vector<FrameWithIndex> &frames, const std::string &filename)
 {
     if (frames.empty())
     {
-        std::cerr << "Нет кадров для сохранения в файл " << filename << std::endl;
+        std::cerr << "No frames to save to file " << filename << std::endl;
         return;
     }
 
     try
     {
-        std::cout << "saveFramesToVideo\n";
-        // Получаем размеры первого кадра
+        std::cout << "Starting video writing" << std::endl;
         cv::Size frameSize = frames[0].frame.size();
 
-        // Создаем объект VideoWriter
-        // FOURCC 'XVID' - кодек для AVI файлов
-        // 30.0 - FPS (кадров в секунду)
+        // Try XVID codec first
         cv::VideoWriter videoWriter(filename,
                                     cv::VideoWriter::fourcc('X', 'V', 'I', 'D'),
                                     30.0,
@@ -376,10 +337,8 @@ void PostProcessor::saveFramesToVideo(const std::vector<FrameWithIndex> &frames,
 
         if (!videoWriter.isOpened())
         {
-            std::cerr << "Ошибка: не удалось создать видеофайл " << filename << std::endl;
-
-            // Пробуем альтернативный кодек
-            std::cerr << "Попытка использовать кодек MJPG..." << std::endl;
+            std::cerr << "Error: failed to create video file " << filename << std::endl;
+            std::cerr << "Trying MJPG codec..." << std::endl;
             videoWriter.open(filename,
                              cv::VideoWriter::fourcc('M', 'J', 'P', 'G'),
                              30.0,
@@ -387,39 +346,36 @@ void PostProcessor::saveFramesToVideo(const std::vector<FrameWithIndex> &frames,
 
             if (!videoWriter.isOpened())
             {
-                std::cerr << "Ошибка: не удалось создать видеофайл с кодеком MJPG" << std::endl;
+                std::cerr << "Error: failed to create video file with MJPG codec" << std::endl;
                 return;
             }
         }
 
-        // Записываем каждый кадр в видео
+        // Write all frames
         for (const auto &frameWithIndex : frames)
         {
             videoWriter.write(frameWithIndex.frame);
         }
 
-        // Закрываем видеофайл
         videoWriter.release();
 
-        std::cout << "Видео сохранено: " << filename
-                  << " (кадров: " << frames.size() << ")" << std::endl;
+        std::cout << "Video saved: " << filename
+                  << " (frames: " << frames.size() << ")" << std::endl;
     }
     catch (const cv::Exception &e)
     {
-        std::cerr << "Ошибка OpenCV при сохранении видео: " << e.what() << std::endl;
+        std::cerr << "OpenCV error while saving video: " << e.what() << std::endl;
     }
     catch (const std::exception &e)
     {
-        std::cerr << "Ошибка при сохранении видео: " << e.what() << std::endl;
+        std::cerr << "Error while saving video: " << e.what() << std::endl;
     }
 }
 
-// Сброс части буфера к черным кадрам
+// Reset a buffer segment to black frames
 void PostProcessor::resetBufferPart(BufferPart part)
 {
     int startIdx, endIdx;
-
-    // Определяем границы части буфера
     switch (part)
     {
     case BufferPart::FIRST:
@@ -436,35 +392,30 @@ void PostProcessor::resetBufferPart(BufferPart part)
         break;
     }
 
-    // Сбрасываем кадры в указанном диапазоне
     for (int i = startIdx; i <= endIdx; i++)
     {
         if (!frameBuffer[i].frame.empty())
         {
-            // Сохраняем размеры для создания черного кадра
             int width = frameBuffer[i].frame.cols;
             int height = frameBuffer[i].frame.rows;
             frameBuffer[i].frame = createBlackFrame(width, height);
         }
-        frameBuffer[i].index = -1; // Отмечаем как пустой
+        frameBuffer[i].index = -1;
     }
 
-    std::cout << "Часть буфера " << static_cast<int>(part)
-              << " сброшена к черным кадрам" << std::endl;
+    std::cout << "Buffer segment " << static_cast<int>(part)
+              << " reset to black frames" << std::endl;
 }
 
-// Принудительное сохранение всех кадров
+// Force-save all remaining frames
 void PostProcessor::flushAll()
 {
     std::lock_guard<std::mutex> lock(bufferMutex);
 
-    // Сохраняем все заполненные части буфера
     if (currentFrameIndex > 0)
     {
-        // Определяем, какие части нужно сохранить
         if (firstRun)
         {
-            // При первом прогоне сохраняем все заполненные кадры
             int filledParts = (currentFrameIndex - 1) / bufferPartSize + 1;
             for (int part = 0; part < filledParts; part++)
             {
@@ -473,67 +424,61 @@ void PostProcessor::flushAll()
         }
         else
         {
-            // Сохраняем все три части
             savePartToVideo(BufferPart::FIRST);
             savePartToVideo(BufferPart::SECOND);
             savePartToVideo(BufferPart::THIRD);
         }
     }
 
-    std::cout << "Все кадры сохранены в директорию: " << outputDirectory << std::endl;
+    std::cout << "All frames saved to directory: " << outputDirectory << std::endl;
 }
 
-// Поток проверки таймаута
+// Background thread that checks for inactivity timeout
 void PostProcessor::timeoutChecker()
 {
     while (isRunning)
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Проверяем каждые 100 мс
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
         auto now = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-            now - lastFrameTime);
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastFrameTime);
 
-        // Если время с последнего кадра превысило таймаут
         if (elapsed > timeoutDuration)
         {
-            std::cout << "Таймаут истек, сохраняем оставшиеся кадры..." << std::endl;
+            std::cout << "Timeout expired, saving remaining frames..." << std::endl;
             flushAll();
-            lastFrameTime = now; // Сбрасываем таймер
+            lastFrameTime = now; // Reset timer
         }
     }
 }
 
-// Запуск постобработчика
+// Start the post-processor (spawn timeout thread)
 void PostProcessor::start()
 {
     if (!isRunning)
     {
         isRunning = true;
-        // Запускаем поток проверки таймаута
         timeoutThread = std::thread(&PostProcessor::timeoutChecker, this);
-        std::cout << "PostProcessor запущен. Видео сохраняются в: " << outputDirectory << std::endl;
+        std::cout << "PostProcessor started. Videos saved to: " << outputDirectory << std::endl;
     }
 }
 
-// Остановка постобработчика
+// Stop the post-processor and save remaining data
 void PostProcessor::stop()
 {
     if (isRunning)
     {
         isRunning = false;
-        // Ожидаем завершения потока таймаута
         if (timeoutThread.joinable())
         {
             timeoutThread.join();
         }
-        // Сохраняем все оставшиеся кадры
         flushAll();
-        std::cout << "PostProcessor остановлен" << std::endl;
+        std::cout << "PostProcessor stopped" << std::endl;
     }
 }
 
-// Метод для изменения директории сохранения
+// Change output directory at runtime
 void PostProcessor::setOutputDirectory(const std::string &dir)
 {
     if (!dir.empty())
@@ -542,94 +487,78 @@ void PostProcessor::setOutputDirectory(const std::string &dir)
         {
             fs::create_directories(dir);
             outputDirectory = dir;
-            std::cout << "Директория для сохранения видео изменена на: " << outputDirectory << std::endl;
+            std::cout << "Video output directory changed to: " << outputDirectory << std::endl;
         }
         catch (const fs::filesystem_error &e)
         {
-            std::cerr << "Ошибка при создании директории " << dir
+            std::cerr << "Error creating directory " << dir
                       << ": " << e.what() << std::endl;
         }
     }
 }
 
-int main()
-{
-    std::cout << "real" << std::endl;
-    Utils postprocessor;
-    postprocessor.loadConfig();
+// Main entry point
+int main() {
+    std::cout << "=== POSTPROCESSOR (REAL MODE) STARTED ===" << std::endl;
 
-    std::string ip = postprocessor.getConfig("postprocessor.ip");
-    int port = std::stoi(postprocessor.getConfig("postprocessor.port"));
-    std::string output_dir = postprocessor.getConfig("postprocessor.output_dir");
-    std::string proc_prefix = postprocessor.getConfig("postprocessor.processed_prefix");
-    std::string bare_prefix = postprocessor.getConfig("postprocessor.bare_prefix");
-    int maxFrames = std::stoi(postprocessor.getConfig("postprocessor.max_frames"));
-    int timeoutDuration = std::stoi(postprocessor.getConfig("postprocessor.timeout_duration"));
+#ifdef DEBUG
+    std::cout << "DEBUG MODE ENABLED" << std::endl;
+#endif
 
-    static int image_counter = 1;
+    // 1. Load configuration
+    Utils config;
+    config.loadConfig();
 
-    if (!postprocessor.initializeServer(ip, port))
-    {
-        return -1;
-    }
+    int zmq_port = std::stoi(config.getConfig("postprocessor.zmq_port")); // e.g., 5557
+    std::string output_dir = config.getConfig("postprocessor.output_dir");
+    int max_frames = std::stoi(config.getConfig("postprocessor.max_frames"));
+    int timeout_ms = std::stoi(config.getConfig("postprocessor.timeout_duration"));
 
-    // Создаем экземпляр PostProcessor с указанием директории для сохранения видео
-    // Буфер на 90 кадров (30 кадров в каждой из 3 частей)
-    // Таймаут 5 секунд
-    // Директория для сохранения видео берется из конфигурации
-    PostProcessor videoProcessor(maxFrames, timeoutDuration, output_dir);
-    videoProcessor.start(); // Запускаем постобработчик
+    std::filesystem::create_directories(output_dir);
 
-    std::cout << "PostProcessor started. Waiting for server..." << std::endl;
+    // 2. Initialize post-processor
+    PostProcessor videoProcessor(max_frames, timeout_ms, output_dir);
+    videoProcessor.start();
 
-    while (true)
-    {
-        std::cout << "\nWaiting for server..." << std::endl;
+    // 3. Set up ZeroMQ PULL socket to receive from worker
+    zmq::context_t ctx(1);
+    zmq::socket_t socket(ctx, zmq::socket_type::pull);
+    std::string endpoint = "tcp://*:" + std::to_string(zmq_port);
+    socket.bind(endpoint);
+    std::cout << "Bound to: " << endpoint << std::endl;
 
-        // Ждем запрос от сервера
-        std::string request = postprocessor.receiveMessage();
-        if (request == "READY")
-        {
-            std::cout << "Server is ready. Receiving images..." << std::endl;
+    // 4. Main receive loop
+    while (true) {
+        zmq::message_t msg;
+        auto result = socket.recv(msg, zmq::recv_flags::none);
 
-            // Отправляем подтверждение, что готовы получать изображения
-            postprocessor.sendMessage("SEND_FIRST_IMAGE");
-
-            // Получаем первое изображение (обработанное)
-            cv::Mat processed_image = postprocessor.receiveImage();
-            if (!processed_image.empty())
-            {
-                postprocessor.setCurrentImage(processed_image);
-                std::string proc_filename = output_dir + proc_prefix + std::to_string(image_counter) + ".bmp";
-                // postprocessor.saveImage(proc_filename);
-                // std::cout << "Saved processed image: " << proc_filename << std::endl;
-
-                // Добавляем кадр в PostProcessor
-                videoProcessor.addFrame(processed_image, image_counter); // Тут вместо image_counter передаем номер кадра
-
-                // Подтверждаем получение первого изображения
-                postprocessor.sendMessage("SEND_SECOND_IMAGE");
-
-                // Получаем второе изображение (оригинальное)
-                cv::Mat original_image = postprocessor.receiveImage();
-                if (!original_image.empty())
-                {
-                    postprocessor.setCurrentImage(original_image);
-                    std::string bare_filename = output_dir + bare_prefix + std::to_string(image_counter) + ".bmp";
-                    // postprocessor.saveImage(bare_filename);
-                    // std::cout << "Saved original image: " << bare_filename << std::endl;
-
-                    // Подтверждаем завершение
-                    postprocessor.sendMessage("DONE");
-
-                    std::cout << "Postprocessing completed. Total: " << image_counter << std::endl;
-                    image_counter += image_counter % 2 == 0 ? 20 : 1;
-                }
-            }
+        if (!result.has_value()) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            continue;
         }
+
+        // Deserialize frame
+        ImageStructure is;
+        if (!is.deserialize(msg)) {
+            std::cerr << "Failed to deserialize incoming frame" << std::endl;
+            continue;
+        }
+
+        cv::Mat frame = is.getImage();
+        uint64_t frame_id = is.getFrameId();
+
+        if (frame.empty()) {
+            std::cerr << "Received empty frame" << std::endl;
+            continue;
+        }
+
+        std::cout << "- [ OK ] Received frame " << frame_id
+                  << " (" << frame.cols << "x" << frame.rows << ")" << std::endl;
+
+        // Pass frame to post-processor
+        videoProcessor.addFrame(frame, static_cast<int>(frame_id));
     }
 
-    videoProcessor.stop(); // Останавливаем постобработчик перед выходом
-
+    videoProcessor.stop();
     return 0;
 }

@@ -65,8 +65,8 @@ endif()
 
 # Опции для выбора версии каждого модуля
 option(BUILD_SERVER_REAL "Build server with real implementation" OFF)
-option(BUILD_WORKER_REAL "Build worker with real implementation" OFF)
-option(BUILD_POSTPROCESSOR_REAL "Build postprocessor with real implementation" OFF)
+option(BUILD_WORKER_REAL "Build worker with real implementation" ON)
+option(BUILD_POSTPROCESSOR_REAL "Build postprocessor with real implementation" ON)
 option(BUILD_UTILS_REAL "Build utils with real implementation" OFF)
 
 # Опции для сборки отдельных модулей

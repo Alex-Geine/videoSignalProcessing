@@ -36,7 +36,7 @@ int main() {
     zmq::socket_t socket(ctx, zmq::socket_type::push);
     
     try {
-        socket.set(zmq::sockopt::sndhwm, 100);
+        socket.set(zmq::sockopt::sndhwm, 2);
         socket.set(zmq::sockopt::linger, 0);
         socket.bind(zmq_endpoint);
         std::cout << "Bound ZMQ socket to: " << zmq_endpoint << std::endl;

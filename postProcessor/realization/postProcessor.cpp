@@ -12,7 +12,7 @@ namespace fs = std::filesystem;
 // Constructor with default parameters
 PostProcessor::PostProcessor(int bufferSize, int timeoutMs, const std::string &outputDir)
     : maxFrames(bufferSize),
-      currentFrameIndex(0),
+      isInit(0),
       firstRun(true),
       currentlyFilling(BufferPart::FIRST),
       isRunning(false),
@@ -107,7 +107,7 @@ void PostProcessor::addFrame(const cv::Mat &frame, int index)
     lastFrameTime = std::chrono::steady_clock::now();
 
     // On first frame, adjust all black frames to match real frame size
-    if (currentFrameIndex == 0)
+    if (isInit == 0)
     {
         for (int i = 0; i < maxFrames; i++)
         {
@@ -116,6 +116,7 @@ void PostProcessor::addFrame(const cv::Mat &frame, int index)
                 frameBuffer[i].frame = createBlackFrame(frame.cols, frame.rows);
             }
         }
+        isInit = 1;
     }
 
     // Use cyclic index based on frame ID
@@ -126,48 +127,36 @@ void PostProcessor::addFrame(const cv::Mat &frame, int index)
     std::cout << "Frame " << index << " added to buffer at position " << bufferIndex << std::endl;
 
     // Check if a buffer segment is full and needs saving
-    checkAndSaveIfNeeded();
+    checkAndSaveIfNeeded(index);
 }
 
 // Check if a buffer segment is full and trigger saving
-void PostProcessor::checkAndSaveIfNeeded()
+void PostProcessor::checkAndSaveIfNeeded(int index)
 {
+    int currentPart = (index / bufferPartSize) % 3;
+    BufferPart currentPartEnum = static_cast<BufferPart>(currentPart);
+
     if (firstRun)
     {
-        // On first run, wait until the third segment starts filling
-        if (currentFrameIndex >= bufferPartSize * 2)
+        // Only allow saving Segment 0 when we reach Segment 2
+        if (currentPart == 2 && lastSavedPart == BufferPart::THIRD)
         {
-            std::cout << "First two segments filled, starting third segment" << std::endl;
-            currentlyFilling = BufferPart::THIRD;
             savePartToVideo(BufferPart::FIRST);
+            lastSavedPart = BufferPart::FIRST;
             firstRun = false;
+            currentlyFilling = BufferPart::THIRD;
         }
     }
     else
     {
-        int currentPart = currentFrameIndex / bufferPartSize;
+        // Save segment only once per cycle
+        BufferPart nextToSave = static_cast<BufferPart>((currentPart + 2) % 3); // the one *before* current
 
-        // Detect segment boundary crossings
-        if ((currentPart == 1 && currentlyFilling == BufferPart::FIRST) ||
-            (currentPart == 2 && currentlyFilling == BufferPart::SECOND) ||
-            (currentPart == 0 && currentlyFilling == BufferPart::THIRD))
+        if (nextToSave != lastSavedPart)
         {
-            switch (currentPart)
-            {
-            case 0:
-                currentlyFilling = BufferPart::FIRST;
-                savePartToVideo(BufferPart::SECOND);
-                break;
-            case 1:
-                currentlyFilling = BufferPart::SECOND;
-                savePartToVideo(BufferPart::THIRD);
-                break;
-            case 2:
-                currentlyFilling = BufferPart::THIRD;
-                savePartToVideo(BufferPart::FIRST);
-                currentFrameIndex = 0; // Reset for cyclic reuse
-                break;
-            }
+            savePartToVideo(nextToSave);
+            lastSavedPart = nextToSave;
+            currentlyFilling = currentPartEnum;
         }
     }
 }
@@ -261,8 +250,7 @@ void PostProcessor::savePartToVideo(BufferPart partToSave)
 #endif
 
             std::stringstream filename;
-            filename << "video_part_" << static_cast<int>(partToSave) << "_"
-                     << std::put_time(&tm_now, "%Y%m%d_%H%M%S") << ".avi";
+            filename << std::put_time(&tm_now, "%Y%m%d_%H%M%S") << "_video_part_" << static_cast<int>(partToSave)<< ".avi";
 
             std::cout << "Output directory: " << localOutputDir << std::endl;
 
@@ -316,60 +304,38 @@ void PostProcessor::savePartToVideo(BufferPart partToSave)
 }
 
 // Write a sequence of frames to a video file
-void PostProcessor::saveFramesToVideo(const std::vector<FrameWithIndex> &frames, const std::string &filename)
+void PostProcessor::saveFramesToVideo(const std::vector<FrameWithIndex>& frames, const std::string& filename)
 {
-    if (frames.empty())
-    {
-        std::cerr << "No frames to save to file " << filename << std::endl;
+    if (frames.empty()) {
+        std::cerr << "No frames to save to " << filename << std::endl;
         return;
     }
 
-    try
-    {
-        std::cout << "Starting video writing" << std::endl;
-        cv::Size frameSize = frames[0].frame.size();
+    cv::Size size = frames[0].frame.size();
+    if (size.width == 0 || size.height == 0) {
+        std::cerr << "Invalid frame size!" << std::endl;
+        return;
+    }
 
-        // Try XVID codec first
-        cv::VideoWriter videoWriter(filename,
-                                    cv::VideoWriter::fourcc('X', 'V', 'I', 'D'),
-                                    30.0,
-                                    frameSize);
+    // Use uncompressed AVI (FOURCC = 0) — works on all Windows systems
+    cv::VideoWriter writer(filename, 0, 30.0, size);
 
-        if (!videoWriter.isOpened())
-        {
-            std::cerr << "Error: failed to create video file " << filename << std::endl;
-            std::cerr << "Trying MJPG codec..." << std::endl;
-            videoWriter.open(filename,
-                             cv::VideoWriter::fourcc('M', 'J', 'P', 'G'),
-                             30.0,
-                             frameSize);
+    if (!writer.isOpened()) {
+        std::cerr << "FAILED to create video file: " << filename << std::endl;
+        std::cerr << "Tip: Uncompressed AVI (FOURCC=0) should always work." << std::endl;
+        return;
+    }
 
-            if (!videoWriter.isOpened())
-            {
-                std::cerr << "Error: failed to create video file with MJPG codec" << std::endl;
-                return;
-            }
+    for (const auto& f : frames) {
+        if (f.frame.size() != size) {
+            std::cerr << "Skipping frame with mismatched size" << std::endl;
+            continue;
         }
-
-        // Write all frames
-        for (const auto &frameWithIndex : frames)
-        {
-            videoWriter.write(frameWithIndex.frame);
-        }
-
-        videoWriter.release();
-
-        std::cout << "Video saved: " << filename
-                  << " (frames: " << frames.size() << ")" << std::endl;
+        writer.write(f.frame);
     }
-    catch (const cv::Exception &e)
-    {
-        std::cerr << "OpenCV error while saving video: " << e.what() << std::endl;
-    }
-    catch (const std::exception &e)
-    {
-        std::cerr << "Error while saving video: " << e.what() << std::endl;
-    }
+
+    writer.release();
+    std::cout << "Saved video: " << filename << " (" << frames.size() << " frames)" << std::endl;
 }
 
 // Reset a buffer segment to black frames
@@ -412,23 +378,9 @@ void PostProcessor::flushAll()
 {
     std::lock_guard<std::mutex> lock(bufferMutex);
 
-    if (currentFrameIndex > 0)
-    {
-        if (firstRun)
-        {
-            int filledParts = (currentFrameIndex - 1) / bufferPartSize + 1;
-            for (int part = 0; part < filledParts; part++)
-            {
-                savePartToVideo(static_cast<BufferPart>(part));
-            }
-        }
-        else
-        {
-            savePartToVideo(BufferPart::FIRST);
-            savePartToVideo(BufferPart::SECOND);
-            savePartToVideo(BufferPart::THIRD);
-        }
-    }
+    savePartToVideo(BufferPart::FIRST);
+    savePartToVideo(BufferPart::SECOND);
+    savePartToVideo(BufferPart::THIRD);
 
     std::cout << "All frames saved to directory: " << outputDirectory << std::endl;
 }

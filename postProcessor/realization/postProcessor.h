@@ -52,13 +52,15 @@ private:
     int maxFrames;
 
     // Текущий индекс в буфере
-    int currentFrameIndex;
+    int isInit;
 
     // Флаг первого запуска
     bool firstRun;
 
     // Текущая заполняемая часть буфера
     BufferPart currentlyFilling;
+
+    BufferPart lastSavedPart = BufferPart::THIRD; // so first save is FIRST
 
     // Размер одной части буфера
     int bufferPartSize;
@@ -91,7 +93,7 @@ private:
     cv::Mat createBlackFrame(int width, int height);
 
     // Проверка необходимости сохранения части буфера
-    void checkAndSaveIfNeeded();
+    void checkAndSaveIfNeeded(int index);
 
     // Сохранение части буфера в видео
     void savePartToVideo(BufferPart partToSave);

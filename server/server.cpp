@@ -12,7 +12,14 @@ class Capturer
 private:
 	cv::VideoCapture cap; // Объект для захвата видео с камеры
 	uint64_t frame_counter; // Счётчик кадров
-	std::filesystem::path temp_dir;
+	std::filesystem::path temp_dir = "./camera_capture";
+	int camera_id = 0;
+	//int queue_size = 100;
+	int cap_frame_width = 640;
+	int cap_frame_height = 480;
+	int cap_fps = 30;
+	int cap_quality = 80;
+	//const std::string capturer_bind_addresses = "tcp://localhost:5555";
 	/*
 	zmq::context_t zmq_ctx; // Контекст ZeroMQ
 	zmq::socket_t socket; // Сокет ZeroMQ для отправки данных
@@ -23,19 +30,12 @@ public:
 		//, socket(zmq_ctx, zmq::socket_type::push) // Инициализация сокета PUSH
 	{
 		std::cout << "=== Capturer Initialization ===" << std::endl;
-		temp_dir = "./camera_capture";
 		std::filesystem::create_directories(temp_dir);
 		init_camera();
 		//init_zmq();
 		std::cout << "======================================================" << std::endl;
 	}
 
-	int camera_id = 0;
-	//int queue_size = 100;
-	int cap_frame_width = 640;
-	int cap_frame_height = 480;
-	int cap_fps = 30;
-	int cap_quality = 80;
 
 private:
 	void init_camera()
@@ -57,13 +57,13 @@ private:
 	void init_zmq()
 	{
 		try {
-			int send_buffer_limit = 100;
+			int send_buffer_limit = queue_size;
 			socket.set(zmq::sockopt::sndhwm, send_buffer_limit); // Установка лимита буфера отправки
 
 			socket.set(zmq::sockopt::linger, 0); // Установка нулевого времени ожидания при закрытии сокета
 			socket.set(zmq::sockopt::immediate, 1); // Включение немедленной отправки
 
-			socket.bind("tcp://localhost:5555"); // Привязка сокета
+			socket.bind(capturer_bind_addresses); // Привязка сокета
 
 			std::cout << "- [ OK ] ZMQ socket bound" << std::endl;
 			std::cout << "- [ INFO ] Send buffer limit (HWM): " << send_buffer_limit << " messages" << std::endl;
